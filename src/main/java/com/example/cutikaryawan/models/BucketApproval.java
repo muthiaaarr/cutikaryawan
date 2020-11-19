@@ -6,9 +6,12 @@ import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.EntityListeners;
 import javax.persistence.FetchType;
+import javax.persistence.GeneratedValue;
+import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
+import javax.persistence.SequenceGenerator;
 import javax.persistence.Table;
 import javax.persistence.Temporal;
 import javax.persistence.TemporalType;
@@ -79,7 +82,9 @@ public class BucketApproval implements java.io.Serializable {
 	}
 
 	@Id
-
+	@GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "generator_bucket_approval_bucket_approval_id_2_seq")
+	@SequenceGenerator(name = "generator_bucket_approval_bucket_approval_id_2_seq", sequenceName = "bucket_approval_bucket_approval_id_2_seq",
+							schema = "public", allocationSize = 1)
 	@Column(name = "bucket_approval_id", unique = true, nullable = false)
 	public long getBucketApprovalId() {
 		return this.bucketApprovalId;
@@ -174,7 +179,7 @@ public class BucketApproval implements java.io.Serializable {
 		this.resolverReason = resolverReason;
 	}
 
-	@Column(name = "created_by", nullable = false)
+	@Column(name = "created_by")
 	@CreatedBy
 	public String getCreatedBy() {
 		return this.createdBy;
@@ -185,7 +190,7 @@ public class BucketApproval implements java.io.Serializable {
 	}
 
 	@Temporal(TemporalType.TIMESTAMP)
-	@Column(name = "created_at", nullable = false, length = 29)
+	@Column(name = "created_at", length = 29)
 	@CreatedDate
 	public Date getCreatedAt() {
 		return this.createdAt;

@@ -86,7 +86,7 @@ public class Position implements java.io.Serializable {
 		this.positionName = positionName;
 	}
 
-	@Column(name = "created_by", nullable = false)
+	@Column(name = "created_by")
 	@CreatedBy
 	public String getCreatedBy() {
 		return this.createdBy;
@@ -97,7 +97,7 @@ public class Position implements java.io.Serializable {
 	}
 
 	@Temporal(TemporalType.TIMESTAMP)
-	@Column(name = "created_at", nullable = false, length = 29)
+	@Column(name = "created_at", length = 29)
 	@CreatedDate
 	public Date getCreatedAt() {
 		return this.createdAt;

@@ -8,10 +8,13 @@ import javax.persistence.Column;
 import javax.persistence.Entity;
 import javax.persistence.EntityListeners;
 import javax.persistence.FetchType;
+import javax.persistence.GeneratedValue;
+import javax.persistence.GenerationType;
 import javax.persistence.Id;
 import javax.persistence.JoinColumn;
 import javax.persistence.ManyToOne;
 import javax.persistence.OneToMany;
+import javax.persistence.SequenceGenerator;
 import javax.persistence.Table;
 import javax.persistence.Temporal;
 import javax.persistence.TemporalType;
@@ -81,7 +84,9 @@ public class UserLeaveRequest implements java.io.Serializable {
 	}
 
 	@Id
-
+	@GeneratedValue(strategy = GenerationType.SEQUENCE, generator = "generator_user_leave_request_user_leave_request_id_2_seq")
+	@SequenceGenerator(name = "generator_user_leave_request_user_leave_request_id_2_seq", sequenceName = "user_leave_request_user_leave_request_id_2_seq",
+							schema = "public", allocationSize = 1)
 	@Column(name = "user_leave_request_id", unique = true, nullable = false)
 	public long getUserLeaveRequestId() {
 		return this.userLeaveRequestId;
@@ -158,7 +163,7 @@ public class UserLeaveRequest implements java.io.Serializable {
 		this.remainingDaysOff = remainingDaysOff;
 	}
 
-	@Column(name = "created_by", nullable = false)
+	@Column(name = "created_by")
 	@CreatedBy
 	public String getCreatedBy() {
 		return this.createdBy;
@@ -169,7 +174,7 @@ public class UserLeaveRequest implements java.io.Serializable {
 	}
 
 	@Temporal(TemporalType.TIMESTAMP)
-	@Column(name = "created_at", nullable = false, length = 29)
+	@Column(name = "created_at", length = 29)
 	@CreatedDate
 	public Date getCreatedAt() {
 		return this.createdAt;
