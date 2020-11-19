@@ -33,7 +33,7 @@ import com.fasterxml.jackson.annotation.JsonIgnoreProperties;
 @Entity
 @Table(name = "user_leave_request", schema = "public")
 @EntityListeners(AuditingEntityListener.class)
-@JsonIgnoreProperties(value = {"createdAt", "updatedAt"})
+@JsonIgnoreProperties(value = {"dateOfFiling", "createdAt", "updatedAt"})
 public class UserLeaveRequest implements java.io.Serializable {
 
 	private long userLeaveRequestId;
@@ -115,8 +115,9 @@ public class UserLeaveRequest implements java.io.Serializable {
 		this.submissionStatus = submissionStatus;
 	}
 
-	@Temporal(TemporalType.DATE)
-	@Column(name = "date_of_filing", nullable = false, length = 13)
+	@Temporal(TemporalType.TIMESTAMP)
+	@Column(name = "date_of_filing", length = 13)
+	@CreatedDate
 	public Date getDateOfFiling() {
 		return this.dateOfFiling;
 	}
