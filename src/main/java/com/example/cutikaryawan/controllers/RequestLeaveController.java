@@ -10,15 +10,25 @@ import java.util.Map;
 
 import org.modelmapper.ModelMapper;
 import org.springframework.beans.factory.annotation.Autowired;
+import org.springframework.data.domain.Page;
+import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
+import org.springframework.format.annotation.DateTimeFormat;
+import org.springframework.http.HttpStatus;
+import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
 import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.cutikaryawan.exceptions.DateNotFoundException;
+import com.example.cutikaryawan.models.BucketApproval;
 import com.example.cutikaryawan.models.PositionLeave;
 import com.example.cutikaryawan.models.User;
 import com.example.cutikaryawan.models.UserLeaveRequest;
 import com.example.cutikaryawan.models.dtos.UserLeaveRequestDTO;
+import com.example.cutikaryawan.repositories.BucketApprovalRepository;
 import com.example.cutikaryawan.repositories.PositionLeaveRepository;
 import com.example.cutikaryawan.repositories.UserLeaveRequestRepository;
 import com.example.cutikaryawan.repositories.UserRepository;
@@ -33,14 +43,15 @@ public class RequestLeaveController {
 	UserRepository userRepository;
 	@Autowired
 	PositionLeaveRepository positionLeaveRepository;
+	@Autowired
+	BucketApprovalRepository approvalRepository;
 	
 	ModelMapper mapper = new ModelMapper();
 	SimpleDateFormat date = new SimpleDateFormat("dd-MM-yyyy"); 
 	
 	// API REQUEST LEAVE
-	@PostMapping("/request-leave")
+	@PostMapping("/leave-request")
 	public Map<String, String> requestLeave(@RequestBody UserLeaveRequestDTO leaveRequestDTO) {
-		int totalDays = 0;
 		Map<String, String> result = new HashMap<>();
 		List<UserLeaveRequest> requestList = new ArrayList<UserLeaveRequest>();
 		
@@ -50,41 +61,82 @@ public class RequestLeaveController {
 		
 		User user = userRepository.findById(leaveRequest.getUser().getUserId()).get();
 		leaveRequest.setRemainingDaysOff(calculateRemainingDaysOff(leaveRequest, user));
+		jatahCutiMax(user);
 		
-		for (UserLeaveRequest userLeaveRequest : requestList) {
+		for (UserLeaveRequest leaveRequest2 : requestList) {
 					
 			// JATAH CUTI SESUAI
-			if (validateJatahCuti(userLeaveRequest, user)) {
+			if (validateJatahCuti(leaveRequest2, user)) {
 				result.put("Message", "Permohonan Anda sedang diproses");
-				leaveRequestRepository.save(leaveRequest);
+				leaveRequest2.setSubmissionStatus("waiting");
+				leaveRequest2.setCreatedBy("Muthia");
+				leaveRequestRepository.save(leaveRequest2);
 			} 
 			
 			// ERROR JATAH CUTI HABIS
-			else if (leaveRequest.getRemainingDaysOff() == 0) {
+			else if (leaveRequest2.getRemainingDaysOff() == 0) {
 				result.put("Message", "Mohon maaf, jatah cuti Anda habis");
 			}
 			
 			// ERROR JATAH CUTI TIDAK CUKUP
-			else if (validateJatahCuti(userLeaveRequest, user) == false) {
-				String dateFrom = date.format(userLeaveRequest.getLeaveDateFrom());
-				String dateTo = date.format(userLeaveRequest.getLeaveDateTo());
+			else if (validateJatahCuti(leaveRequest2, user) == false) {
+				String dateFrom = date.format(leaveRequest2.getLeaveDateFrom());
+				String dateTo = date.format(leaveRequest2.getLeaveDateTo());
 				result.put("Message", String.format("Mohon maaf, jatah cuti Anda tidak cukup untuk digunakan dari tanggal %s"
 						+ " sampai %s (%s hari). Jatah cuti Anda yang tersisa adalah %s hari", dateFrom, dateTo,
-						selisihTanggal(userLeaveRequest.getLeaveDateTo(), userLeaveRequest.getLeaveDateFrom()),
-						(-userLeaveRequest.getRemainingDaysOff()) ));
+						selisihTanggal(leaveRequest2.getLeaveDateTo(), leaveRequest2.getLeaveDateFrom()),
+						(-leaveRequest2.getRemainingDaysOff())));
 			}
 			
 			// ERROR SALAH TANGGAL (LEAVE DATE FROM > LEAVE DATE TO) 
-			else if (validateDate(userLeaveRequest.getLeaveDateFrom(), userLeaveRequest.getLeaveDateTo())) {
+			else if (validateDate(leaveRequest2.getLeaveDateFrom(), leaveRequest2.getLeaveDateTo())) {
 				result.put("Message", "Tanggal yang Anda ajukan tidak valid");
 			} 
 			
 			// ERROR CUTI BACKDATE (TANGGAL PENGAJUAN CUTI < TANGGAL HARI INI)
-			else if (validateDate(userLeaveRequest.getDateOfFiling(), userLeaveRequest.getLeaveDateFrom())) {
+			else if (validateDate(leaveRequest2.getDateOfFiling(), leaveRequest2.getLeaveDateFrom())) {
 				result.put("Message", "Tanggal yang Anda ajukan telah lampau, silakan ganti tanggal pengajuan cuti Anda");
 			}
-			System.out.println(totalDays);
+		}		
+		
+		return result;
+	}
+	
+	// API GET ALL LEAVE REQUEST LIST
+	@GetMapping("/leave-request-list/{userId}/{totalDataPerPage}/{choosenPage}")
+	public List<UserLeaveRequestDTO> requestList(@PathVariable Long userId, @PathVariable int totalDataPerPage,
+			@PathVariable int choosenPage) {
+		
+		Pageable paging = PageRequest.of(choosenPage, totalDataPerPage);
+		Page<UserLeaveRequest> result = leaveRequestRepository.findAllRequestByIdUser(paging, userId);
+		
+		List<UserLeaveRequestDTO> listDTO = new ArrayList<>();
+		
+		for (UserLeaveRequest u : result) {
+			UserLeaveRequestDTO requestDTO = mapper.map(u, UserLeaveRequestDTO.class);
+			listDTO.add(requestDTO);
 		}
+		
+		return listDTO;
+	}
+	
+	// GET REQUEST BY ID AND DATE
+	@GetMapping("/leave-request-list/{userId}/{date}")
+	public Map<String, Object> requestByDate(@PathVariable Long userId, @PathVariable @DateTimeFormat(pattern = "yyyy-MM-dd") Date date) {
+		Map<String, Object> result = new HashMap<String, Object>();
+		
+		UserLeaveRequest data = leaveRequestRepository.findRequestByDate(userId, date);
+		UserLeaveRequestDTO dataDTO = new UserLeaveRequestDTO();
+		dataDTO = mapper.map(data, UserLeaveRequestDTO.class);
+		
+		/*if (data != null) {
+			throw new DateNotFoundException(String.format("Pengajuan tanggal %s untuk user %s tidak ditemukan", date, userId));
+		} else {
+			dataDTO = mapper.map(data, UserLeaveRequestDTO.class);
+		}*/
+		
+		result.put("Message", "Data found!");
+		result.put("Data", dataDTO);
 		
 		return result;
 	}
@@ -96,7 +148,7 @@ public class RequestLeaveController {
 		
 		for (PositionLeave p : positionLeave) {
 			if (p.getPosition().getPositionId() == user.getPosition().getPositionId()) {	
-				jatahCuti = p.getJatahCuti();	
+				jatahCuti = p.getJatahCuti();
 			} else {
 				return jatahCuti;
 			}
@@ -137,9 +189,9 @@ public class RequestLeaveController {
 	private boolean validateJatahCuti(UserLeaveRequest leaveRequest, User user) {
 		boolean result = false;
 		
-		if (selisihTanggal(leaveRequest.getLeaveDateTo(), leaveRequest.getLeaveDateFrom()) <= jatahCutiMax(user) &&
+		if (selisihTanggal(leaveRequest.getLeaveDateTo(), leaveRequest.getLeaveDateFrom()) <= jatahCutiMax(user) /*&&
 				selisihTanggal(leaveRequest.getLeaveDateTo(), leaveRequest.getLeaveDateFrom()) <= 
-				leaveRequest.getRemainingDaysOff()) {
+				leaveRequest.getRemainingDaysOff()*/) {
 			result = true;
 		} else {
 			result = false;
@@ -155,5 +207,6 @@ public class RequestLeaveController {
 		return days;
 	}
 	
+
 
 }
