@@ -14,7 +14,6 @@ import org.springframework.data.domain.Page;
 import org.springframework.data.domain.PageRequest;
 import org.springframework.data.domain.Pageable;
 import org.springframework.format.annotation.DateTimeFormat;
-import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
 import org.springframework.web.bind.annotation.PathVariable;
 import org.springframework.web.bind.annotation.PostMapping;
@@ -23,12 +22,10 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import com.example.cutikaryawan.exceptions.DateNotFoundException;
-import com.example.cutikaryawan.models.BucketApproval;
 import com.example.cutikaryawan.models.PositionLeave;
 import com.example.cutikaryawan.models.User;
 import com.example.cutikaryawan.models.UserLeaveRequest;
 import com.example.cutikaryawan.models.dtos.UserLeaveRequestDTO;
-import com.example.cutikaryawan.repositories.BucketApprovalRepository;
 import com.example.cutikaryawan.repositories.PositionLeaveRepository;
 import com.example.cutikaryawan.repositories.UserLeaveRequestRepository;
 import com.example.cutikaryawan.repositories.UserRepository;
@@ -43,8 +40,6 @@ public class RequestLeaveController {
 	UserRepository userRepository;
 	@Autowired
 	PositionLeaveRepository positionLeaveRepository;
-	@Autowired
-	BucketApprovalRepository approvalRepository;
 	
 	ModelMapper mapper = new ModelMapper();
 	SimpleDateFormat date = new SimpleDateFormat("dd-MM-yyyy"); 
