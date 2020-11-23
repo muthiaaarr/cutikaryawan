@@ -1,5 +1,6 @@
 package com.example.cutikaryawan.controllers;
 
+import java.util.ArrayList;
 import java.util.Calendar;
 import java.util.Date;
 import java.util.HashMap;
@@ -38,34 +39,33 @@ public class BucketApprovalController {
 	@PostMapping("/resolve-leave-request")
 	public Map<String, String> bucketApproval(@RequestBody BucketApprovalDTO approvalDTO) {
 		Map<String, String> result = new HashMap<String, String>();
-		List<BucketApproval> approvalList = bucketApprovalRepository.findAll();
+		List<BucketApproval> approvalList = new ArrayList<BucketApproval>();
 		
 		BucketApproval approval = new BucketApproval();
 		approval = mapper.map(approvalDTO, BucketApproval.class);
 		approvalList.add(approval);
 		
+		User userBy = userRepository.findById(approval.getUser().getUserId()).get();
+		
 		UserLeaveRequest request = leaveRequestRepository.findById(
 				approval.getUserLeaveRequest().getUserLeaveRequestId()).get();
 		User user = userRepository.findById(request.getUser().getUserId()).get();
 		
-		approval.setSubmissionStatus(approval.getResolverDecision());
-		setRequestStatus(request);
-		approval.setDateOfFiling(request.getDateOfFiling());
-		approval.setApplicantName(user.getUserName());
-		approval.setCreatedBy("Muthia");
+		setAttribute(approval, request, user, userBy);
 		
-		for (BucketApproval b : approvalList) {
-			if (validateDate(b.getResolvedDate(), request.getLeaveDateFrom())) {
-				result.put("Message", "Kesalahan data, tanggal keputusan tidak bisa lebih awal dari pengajuan cuti");
-			} else {
-				result.put("Message", String.format("Permohonan dengan ID %s telah berhasil diputuskan", request.getUserLeaveRequestId()));
-				bucketApprovalRepository.save(approval);
-			}
+		// ERROR SALAH TANGGAL (RESOLVED DATE > LEAVE DATE FROM)
+		if (validateDate(approval.getResolvedDate(), request.getLeaveDateFrom())) {
+			result.put("Message", "Kesalahan data, tanggal keputusan tidak bisa lebih awal dari pengajuan cuti");
+		} 
+		
+		// APPROVAL SUCCESS
+		else {
+			result.put("Message", String.format("Permohonan dengan ID %s telah berhasil diputuskan", request.getUserLeaveRequestId()));
+			bucketApprovalRepository.save(approval);
 		}
 		
 		return result;
 	}
-
 	
 	// VALIDATE 2 DATES
 	private boolean validateDate(Date date1, Date date2) {
@@ -86,7 +86,7 @@ public class BucketApprovalController {
 	}
 	
 	// SET SUBMISSION STATUS
-	private void setRequestStatus(UserLeaveRequest leaveRequest) {
+	private void setRequestStatus(BucketApproval bucketApproval, UserLeaveRequest leaveRequest) {
 		List<BucketApproval> approvalList = bucketApprovalRepository.findAll();
 		
 		for (BucketApproval b : approvalList) {
@@ -94,6 +94,28 @@ public class BucketApprovalController {
 			leaveRequest.setSubmissionStatus(b.getResolverDecision());
 			leaveRequestRepository.save(request);
 		}
+	}
+	
+	// SET ATTRIBUTE
+	private void setAttribute(BucketApproval approval, UserLeaveRequest request, User user, User userBy) {
+		approval.setSubmissionStatus(approval.getResolverDecision());
+		setRequestStatus(approval, request);
+		approval.setDateOfFiling(request.getDateOfFiling());
+		approval.setApplicantName(user.getUserName());
+		approval.setResolvedBy(userBy.getUserName());
+		approval.setCreatedBy("Admin");
+		printAttribute(approval, request);
+	}
+	
+	// SYSOUT ATTRIBUTE
+	private void printAttribute(BucketApproval approval, UserLeaveRequest request) {
+		System.out.println("request id\t" + request.getUserLeaveRequestId());
+		System.out.println("applicant\t" + approval.getApplicantName());
+		System.out.println("date filing\t" + approval.getDateOfFiling());
+		System.out.println("request\t\t" + request.getSubmissionStatus());
+		System.out.println("approval\t" + approval.getSubmissionStatus());
+		System.out.println("resolved\t" + approval.getResolvedDate());
+		System.out.println();
 	}
 
 	

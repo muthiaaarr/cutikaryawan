@@ -42,9 +42,9 @@ public class RequestLeaveController {
 	PositionLeaveRepository positionLeaveRepository;
 	
 	ModelMapper mapper = new ModelMapper();
-	SimpleDateFormat date = new SimpleDateFormat("dd-MM-yyyy"); 
+	SimpleDateFormat date = new SimpleDateFormat("dd-MM-yyyy");
 	
-	// API REQUEST LEAVE
+	
 	@PostMapping("/leave-request")
 	public Map<String, String> requestLeave(@RequestBody UserLeaveRequestDTO leaveRequestDTO) {
 		Map<String, String> result = new HashMap<>();
@@ -56,51 +56,52 @@ public class RequestLeaveController {
 		
 		User user = userRepository.findById(leaveRequest.getUser().getUserId()).get();
 		leaveRequest.setRemainingDaysOff(calculateRemainingDaysOff(leaveRequest, user));
-		jatahCutiMax(user);
+
+		printAttribute(leaveRequest, user);
 		
-		for (UserLeaveRequest leaveRequest2 : requestList) {
-					
-			// JATAH CUTI SESUAI
-			if (validateJatahCuti(leaveRequest2, user)) {
-				result.put("Message", "Permohonan Anda sedang diproses");
-				leaveRequest2.setSubmissionStatus("waiting");
-				leaveRequest2.setCreatedBy("Muthia");
-				leaveRequestRepository.save(leaveRequest2);
-			} 
+		// JATAH CUTI SESUAI
+		if (validateJatahCuti(leaveRequest, user) && 
+				validateDate(leaveRequest.getLeaveDateTo(), leaveRequest.getLeaveDateFrom())) {
+			result.put("Message", "Permohonan Anda sedang diproses");
+			leaveRequest.setSubmissionStatus("waiting");
+			leaveRequest.setCreatedBy("Admin");
+			leaveRequestRepository.save(leaveRequest);
+		}
+		
+		// ERROR SALAH TANGGAL (LEAVE DATE FROM > LEAVE DATE TO)
+		else if (validateDate(leaveRequest.getLeaveDateFrom(), leaveRequest.getLeaveDateTo())) {
+			result.put("Message", "Tanggal yang Anda ajukan tidak valid");
+		} 
+		
+		// ERROR JATAH CUTI TIDAK CUKUP
+		else if (validateJatahCuti(leaveRequest, user) == false) {
+			String dateFrom = date.format(leaveRequest.getLeaveDateFrom());
+			String dateTo = date.format(leaveRequest.getLeaveDateTo());
 			
-			// ERROR JATAH CUTI HABIS
-			else if (leaveRequest2.getRemainingDaysOff() == 0) {
-				result.put("Message", "Mohon maaf, jatah cuti Anda habis");
-			}
-			
-			// ERROR JATAH CUTI TIDAK CUKUP
-			else if (validateJatahCuti(leaveRequest2, user) == false) {
-				String dateFrom = date.format(leaveRequest2.getLeaveDateFrom());
-				String dateTo = date.format(leaveRequest2.getLeaveDateTo());
-				result.put("Message", String.format("Mohon maaf, jatah cuti Anda tidak cukup untuk digunakan dari tanggal %s"
-						+ " sampai %s (%s hari). Jatah cuti Anda yang tersisa adalah %s hari", dateFrom, dateTo,
-						selisihTanggal(leaveRequest2.getLeaveDateTo(), leaveRequest2.getLeaveDateFrom()),
-						(-leaveRequest2.getRemainingDaysOff())));
-			}
-			
-			// ERROR SALAH TANGGAL (LEAVE DATE FROM > LEAVE DATE TO) 
-			else if (validateDate(leaveRequest2.getLeaveDateFrom(), leaveRequest2.getLeaveDateTo())) {
-				result.put("Message", "Tanggal yang Anda ajukan tidak valid");
-			} 
-			
-			// ERROR CUTI BACKDATE (TANGGAL PENGAJUAN CUTI < TANGGAL HARI INI)
-			else if (validateDate(leaveRequest2.getDateOfFiling(), leaveRequest2.getLeaveDateFrom())) {
-				result.put("Message", "Tanggal yang Anda ajukan telah lampau, silakan ganti tanggal pengajuan cuti Anda");
-			}
-		}		
+			result.put("Message", String.format("Mohon maaf, jatah cuti Anda tidak cukup untuk digunakan dari tanggal %s"
+					+ " sampai %s (%s hari). Jatah cuti Anda yang tersisa adalah %s hari", dateFrom, dateTo,
+					selisihTanggal(leaveRequest.getLeaveDateTo(), leaveRequest.getLeaveDateFrom()),
+					(-leaveRequest.getRemainingDaysOff())));
+		}
+		
+		// ERROR JATAH CUTI HABIS
+		else if (leaveRequest.getRemainingDaysOff() == 0) {
+			result.put("Message", "Mohon maaf, jatah cuti Anda habis");
+		}
+		
+		// ERROR CUTI BACKDATE (TANGGAL PENGAJUAN CUTI < TANGGAL HARI INI)
+		else if (validateDate(leaveRequest.getDateOfFiling(), leaveRequest.getLeaveDateFrom())) {
+			result.put("Message", "Tanggal yang Anda ajukan telah lampau, silakan ganti tanggal pengajuan cuti Anda");
+		}
 		
 		return result;
 	}
 	
-	// API GET ALL LEAVE REQUEST LIST
+	// API GET ALL LEAVE REQUEST LIST	
 	@GetMapping("/leave-request-list/{userId}/{totalDataPerPage}/{choosenPage}")
-	public List<UserLeaveRequestDTO> requestList(@PathVariable Long userId, @PathVariable int totalDataPerPage,
+	public Map<String, Object> requestList(@PathVariable Long userId, @PathVariable int totalDataPerPage,
 			@PathVariable int choosenPage) {
+		Map<String, Object> resultMap = new HashMap<>();
 		
 		Pageable paging = PageRequest.of(choosenPage, totalDataPerPage);
 		Page<UserLeaveRequest> result = leaveRequestRepository.findAllRequestByIdUser(paging, userId);
@@ -112,7 +113,10 @@ public class RequestLeaveController {
 			listDTO.add(requestDTO);
 		}
 		
-		return listDTO;
+		resultMap.put("Total items", listDTO.size());
+		resultMap.put("Data", listDTO);
+		
+		return resultMap;
 	}
 	
 	// GET REQUEST BY ID AND DATE
@@ -136,22 +140,30 @@ public class RequestLeaveController {
 		return result;
 	}
 	
+	// SYSOUT ATTRIBUTE
+	private void printAttribute(UserLeaveRequest leaveRequest, User user) {
+		System.out.println("position\t" + user.getPosition().getPositionId());
+		System.out.println("today\t\t" + leaveRequest.getDateOfFiling());
+		System.out.println("from\t\t" + leaveRequest.getLeaveDateFrom());
+		System.out.println("to\t\t" + leaveRequest.getLeaveDateTo());
+		System.out.println("desc\t\t" + leaveRequest.getDescription());
+		System.out.println("jatah\t\t" + jatahCutiMax(user));
+		System.out.println("selisih\t\t" + selisihTanggal(leaveRequest.getLeaveDateTo(), leaveRequest.getLeaveDateFrom()));
+		System.out.println("sisa\t\t" + leaveRequest.getRemainingDaysOff());
+		System.out.println();
+		
+	}
+	
 	// VALIDATE POSITION LEAVE
 	private int jatahCutiMax(User user) {
 		int jatahCuti = 0;
-		List<PositionLeave> positionLeave = positionLeaveRepository.findAll();
 		
-		for (PositionLeave p : positionLeave) {
-			if (p.getPosition().getPositionId() == user.getPosition().getPositionId()) {	
-				jatahCuti = p.getJatahCuti();
-			} else {
-				return jatahCuti;
-			}
-		}	
+		PositionLeave positionLeave = positionLeaveRepository.findById(user.getPosition().getPositionId()).get();
+		jatahCuti = positionLeave.getJatahCuti();
 		
 		return jatahCuti;
 	}
-	
+
 	// VALIDATE 2 DATES
 	private boolean validateDate(Date date1, Date date2) {
 		boolean fixDate = false;
@@ -175,7 +187,7 @@ public class RequestLeaveController {
 		
 		long diff = (date1.getTime() - date2.getTime());
 		long diffDays = diff / (24*60*60*1000);
-		int i = (int)diffDays;
+		int i = (int)diffDays + 1;
 		
 		return i;
 	}

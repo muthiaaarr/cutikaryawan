@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.cutikaryawan.exceptions.IdNotFoundException;
 import com.example.cutikaryawan.models.User;
 import com.example.cutikaryawan.models.dtos.UserDTO;
 import com.example.cutikaryawan.repositories.UserRepository;
@@ -36,6 +37,7 @@ public class UserController {
 		
 		User user = new User();
 		user = mapper.map(userDTO, User.class);
+		user.setCreatedBy("Admin");
 		userRepository.save(user);
 		
 		userDTO.setUserId(user.getUserId());
@@ -70,7 +72,9 @@ public class UserController {
 	public Map<String, Object> readUserById(@RequestParam("id") Long id) {
 		Map<String, Object> result = new HashMap<String, Object>();
 		
-		User user = userRepository.findById(id).get(); // bikin exception
+		User user = userRepository.findById(id).orElseThrow(() -> new
+				IdNotFoundException(String.format("User dengan id %s tidak dapat ditemukan", id)));
+		
 		UserDTO userDTO = mapper.map(user, UserDTO.class);
 		
 		result.put("Message", "Read user by id success!");
@@ -84,9 +88,15 @@ public class UserController {
 	public Map<String, Object> updateUser(@RequestParam("id") Long id, @RequestBody UserDTO userDTO) {
 		Map<String, Object> result = new HashMap<String, Object>();
 		
-		User user = userRepository.findById(id).get(); // bikin exception
+		User user = userRepository.findById(id).orElseThrow(() -> new
+				IdNotFoundException(String.format("User dengan id %s tidak dapat ditemukan", id)));
+		
+		userDTO.setUserId(id);
+		userDTO.setCreatedBy(user.getCreatedBy());
+		userDTO.setCreatedAt(user.getCreatedAt());
+		userDTO.setUpdatedBy("Admin");
+		
 		user = mapper.map(userDTO, User.class);
-		user.setUserId(id);
 		userRepository.save(user);
 		
 		userDTO.setUserId(id);
@@ -101,7 +111,9 @@ public class UserController {
 	public Map<String, Object> deleteUser(@RequestParam("id") Long id) {
 		Map<String, Object> result = new HashMap<String, Object>();
 		
-		User user = userRepository.findById(id).get(); // bikin exception
+		User user = userRepository.findById(id).orElseThrow(() -> new
+				IdNotFoundException(String.format("User dengan id %s tidak dapat ditemukan", id)));
+		
 		UserDTO userDTO = mapper.map(user, UserDTO.class);
 		
 		userRepository.delete(user);

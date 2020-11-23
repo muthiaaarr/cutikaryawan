@@ -12,8 +12,7 @@ import org.springframework.stereotype.Repository;
 import com.example.cutikaryawan.models.UserLeaveRequest;
 
 @Repository
-public interface UserLeaveRequestRepository extends JpaRepository<UserLeaveRequest, Long>/*,
-				PagingAndSortingRepository<UserLeaveRequest, Long>*/ {
+public interface UserLeaveRequestRepository extends JpaRepository<UserLeaveRequest, Long> {
 
 	// GET ALL WITH PAGINATION
 	/*@Query(value = "SELECT user_leave_request.user_id, user_leave_request.leave_date_from, "

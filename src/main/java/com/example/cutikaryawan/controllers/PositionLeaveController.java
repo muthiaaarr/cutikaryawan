@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.cutikaryawan.exceptions.IdNotFoundException;
 import com.example.cutikaryawan.models.PositionLeave;
 import com.example.cutikaryawan.models.dtos.PositionLeaveDTO;
 import com.example.cutikaryawan.repositories.PositionLeaveRepository;
@@ -36,6 +37,7 @@ public class PositionLeaveController {
 		
 		PositionLeave positionLeave = new PositionLeave();
 		positionLeave = mapper.map(positionLeaveDTO, PositionLeave.class);
+		positionLeave.setCreatedBy("Admin");
 		positionLeaveRepository.save(positionLeave);
 		
 		positionLeaveDTO.setPositionLeaveId(positionLeave.getPositionLeaveId());
@@ -70,7 +72,9 @@ public class PositionLeaveController {
 	public Map<String, Object> readPositionLeaveById(@RequestParam("id") Long id) {
 		Map<String, Object> result = new HashMap<String, Object>();
 		
-		PositionLeave positionLeave = positionLeaveRepository.findById(id).get(); // bikin exception
+		PositionLeave positionLeave = positionLeaveRepository.findById(id).orElseThrow(() -> new
+				IdNotFoundException(String.format("Position leave dengan id %s tidak dapat ditemukan", id)));
+				
 		PositionLeaveDTO positionLeaveDTO = mapper.map(positionLeave, PositionLeaveDTO.class);
 		
 		result.put("Message", "Read position leave by id success!");
@@ -84,9 +88,15 @@ public class PositionLeaveController {
 	public Map<String, Object> updatePositionLeave(@RequestParam("id") Long id, @RequestBody PositionLeaveDTO positionLeaveDTO) {
 		Map<String, Object> result = new HashMap<String, Object>();
 		
-		PositionLeave positionLeave = positionLeaveRepository.findById(id).get(); // bikin exception
+		PositionLeave positionLeave = positionLeaveRepository.findById(id).orElseThrow(() -> new
+				IdNotFoundException(String.format("Position leave dengan id %s tidak dapat ditemukan", id)));
+		
+		positionLeaveDTO.setPositionLeaveId(id);
+		positionLeaveDTO.setCreatedBy(positionLeave.getCreatedBy());
+		positionLeaveDTO.setCreatedAt(positionLeave.getCreatedAt());
+		positionLeaveDTO.setUpdatedBy("Admin");
+		
 		positionLeave = mapper.map(positionLeaveDTO, PositionLeave.class);
-		positionLeave.setPositionLeaveId(id);
 		positionLeaveRepository.save(positionLeave);
 		
 		positionLeaveDTO.setPositionLeaveId(id);
@@ -101,7 +111,9 @@ public class PositionLeaveController {
 	public Map<String, Object> deletePositionLeave(@RequestParam("id") Long id) {
 		Map<String, Object> result = new HashMap<String, Object>();
 		
-		PositionLeave positionLeave = positionLeaveRepository.findById(id).get(); // bikin exception
+		PositionLeave positionLeave = positionLeaveRepository.findById(id).orElseThrow(() -> new
+				IdNotFoundException(String.format("Position leave dengan id %s tidak dapat ditemukan", id)));
+		
 		PositionLeaveDTO positionLeaveDTO = mapper.map(positionLeave, PositionLeaveDTO.class);
 		
 		positionLeaveRepository.delete(positionLeave);

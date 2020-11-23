@@ -16,6 +16,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RequestParam;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.cutikaryawan.exceptions.IdNotFoundException;
 import com.example.cutikaryawan.models.Position;
 import com.example.cutikaryawan.models.dtos.PositionDTO;
 import com.example.cutikaryawan.repositories.PositionRepository;
@@ -36,6 +37,7 @@ public class PositionController {
 		
 		Position position = new Position();
 		position = mapper.map(positionDTO, Position.class);
+		position.setCreatedBy("Admin");
 		positionRepository.save(position);
 		
 		positionDTO.setPositionId(position.getPositionId());
@@ -70,7 +72,9 @@ public class PositionController {
 	public Map<String, Object> readPositionById(@RequestParam("id") Long id) {
 		Map<String, Object> result = new HashMap<String, Object>();
 		
-		Position position = positionRepository.findById(id).get(); // bikin exception
+		Position position = positionRepository.findById(id).orElseThrow(() -> new
+				IdNotFoundException(String.format("Position dengan id %s tidak dapat ditemukan", id)));
+		
 		PositionDTO positionDTO = mapper.map(position, PositionDTO.class);
 		
 		result.put("Message", "Read position by id success!");
@@ -84,9 +88,15 @@ public class PositionController {
 	public Map<String, Object> updatePosition(@RequestParam("id") Long id, @RequestBody PositionDTO positionDTO) {
 		Map<String, Object> result = new HashMap<String, Object>();
 		
-		Position position = positionRepository.findById(id).get(); // bikin exception
+		Position position = positionRepository.findById(id).orElseThrow(() -> new
+				IdNotFoundException(String.format("Position dengan id %s tidak dapat ditemukan", id)));
+		
+		positionDTO.setPositionId(id);
+		positionDTO.setCreatedBy(position.getCreatedBy());
+		positionDTO.setCreatedAt(position.getCreatedAt());
+		positionDTO.setUpdatedBy("Admin");
+		
 		position = mapper.map(positionDTO, Position.class);
-		position.setPositionId(id);
 		positionRepository.save(position);
 		
 		positionDTO.setPositionId(id);
@@ -101,7 +111,9 @@ public class PositionController {
 	public Map<String, Object> deletePosition(@RequestParam("id") Long id) {
 		Map<String, Object> result = new HashMap<String, Object>();
 		
-		Position position = positionRepository.findById(id).get(); // bikin exception
+		Position position = positionRepository.findById(id).orElseThrow(() -> new
+				IdNotFoundException(String.format("Position dengan id %s tidak dapat ditemukan", id)));
+		
 		PositionDTO positionDTO = mapper.map(position, PositionDTO.class);
 		
 		positionRepository.delete(position);
