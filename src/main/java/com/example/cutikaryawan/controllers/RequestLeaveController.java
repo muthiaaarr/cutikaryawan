@@ -3,6 +3,7 @@ package com.example.cutikaryawan.controllers;
 import java.text.SimpleDateFormat;
 import java.util.ArrayList;
 import java.util.Calendar;
+import java.util.Collections;
 import java.util.Date;
 import java.util.HashMap;
 import java.util.List;
@@ -55,15 +56,17 @@ public class RequestLeaveController {
 		requestList.add(leaveRequest);
 		
 		User user = userRepository.findById(leaveRequest.getUser().getUserId()).get();
-		leaveRequest.setRemainingDaysOff(calculateRemainingDaysOff(leaveRequest, user));
+		leaveRequest.setRemainingDaysOff(remainingDays(leaveRequest, user));
 
 		printAttribute(leaveRequest, user);
 		
 		// JATAH CUTI SESUAI
 		if (validateJatahCuti(leaveRequest, user) && 
-				validateDate(leaveRequest.getLeaveDateTo(), leaveRequest.getLeaveDateFrom())) {
+				validateDate(leaveRequest.getLeaveDateTo(), leaveRequest.getLeaveDateFrom()) &&
+				(minimumRemainingDays(leaveRequest, user) > 0) &&
+				(selisihTanggal(leaveRequest.getLeaveDateTo(), leaveRequest.getLeaveDateFrom()) < minimumRemainingDays(leaveRequest, user))) {
 			result.put("Message", "Permohonan Anda sedang diproses");
-			leaveRequest.setSubmissionStatus("waiting");
+			leaveRequest.setSubmissionStatus("Waiting");
 			leaveRequest.setCreatedBy("Admin");
 			leaveRequestRepository.save(leaveRequest);
 		}
@@ -74,18 +77,18 @@ public class RequestLeaveController {
 		} 
 		
 		// ERROR JATAH CUTI TIDAK CUKUP
-		else if (validateJatahCuti(leaveRequest, user) == false) {
+		else if (selisihTanggal(leaveRequest.getLeaveDateTo(), leaveRequest.getLeaveDateFrom()) > minimumRemainingDays(leaveRequest, user)) {
 			String dateFrom = date.format(leaveRequest.getLeaveDateFrom());
 			String dateTo = date.format(leaveRequest.getLeaveDateTo());
 			
 			result.put("Message", String.format("Mohon maaf, jatah cuti Anda tidak cukup untuk digunakan dari tanggal %s"
 					+ " sampai %s (%s hari). Jatah cuti Anda yang tersisa adalah %s hari", dateFrom, dateTo,
 					selisihTanggal(leaveRequest.getLeaveDateTo(), leaveRequest.getLeaveDateFrom()),
-					(-leaveRequest.getRemainingDaysOff())));
+					(minimumRemainingDays(leaveRequest, user))));
 		}
 		
 		// ERROR JATAH CUTI HABIS
-		else if (leaveRequest.getRemainingDaysOff() == 0) {
+		else if (minimumRemainingDays(leaveRequest, user) <= 0) {
 			result.put("Message", "Mohon maaf, jatah cuti Anda habis");
 		}
 		
@@ -105,6 +108,7 @@ public class RequestLeaveController {
 		
 		Pageable paging = PageRequest.of(choosenPage, totalDataPerPage);
 		Page<UserLeaveRequest> result = leaveRequestRepository.findAllRequestByIdUser(paging, userId);
+		List<UserLeaveRequest> total = leaveRequestRepository.getAllListRequest(userId);
 		
 		List<UserLeaveRequestDTO> listDTO = new ArrayList<>();
 		
@@ -113,7 +117,7 @@ public class RequestLeaveController {
 			listDTO.add(requestDTO);
 		}
 		
-		resultMap.put("Total items", listDTO.size());
+		resultMap.put("Total items", total.size());
 		resultMap.put("Data", listDTO);
 		
 		return resultMap;
@@ -150,6 +154,7 @@ public class RequestLeaveController {
 		System.out.println("jatah\t\t" + jatahCutiMax(user));
 		System.out.println("selisih\t\t" + selisihTanggal(leaveRequest.getLeaveDateTo(), leaveRequest.getLeaveDateFrom()));
 		System.out.println("sisa\t\t" + leaveRequest.getRemainingDaysOff());
+		System.out.println("min\t\t" + minimumRemainingDays(leaveRequest, user));
 		System.out.println();
 		
 	}
@@ -196,9 +201,7 @@ public class RequestLeaveController {
 	private boolean validateJatahCuti(UserLeaveRequest leaveRequest, User user) {
 		boolean result = false;
 		
-		if (selisihTanggal(leaveRequest.getLeaveDateTo(), leaveRequest.getLeaveDateFrom()) <= jatahCutiMax(user) /*&&
-				selisihTanggal(leaveRequest.getLeaveDateTo(), leaveRequest.getLeaveDateFrom()) <= 
-				leaveRequest.getRemainingDaysOff()*/) {
+		if (selisihTanggal(leaveRequest.getLeaveDateTo(), leaveRequest.getLeaveDateFrom()) <= jatahCutiMax(user)) {
 			result = true;
 		} else {
 			result = false;
@@ -207,13 +210,66 @@ public class RequestLeaveController {
 		return result;
 	}
 	
-	// VALIDATE REMAINING DAYS OFF
-	private int calculateRemainingDaysOff(UserLeaveRequest leaveRequest, User user) {
-		int days = jatahCutiMax(user) - selisihTanggal(leaveRequest.getLeaveDateTo(), leaveRequest.getLeaveDateFrom());
+	// CALCULATE REMAINING DAYS OFF
+	private int remaining(UserLeaveRequest leaveRequest, User user) {
+		int days = 0;
+		List<UserLeaveRequest> list = leaveRequestRepository.findAll();
+		
+		for (UserLeaveRequest u : list) {
+			if (u.getUser().getUserId() == user.getUserId()) {
+				days = minimumRemainingDays(leaveRequest, user) - selisihTanggal(leaveRequest.getLeaveDateTo(), leaveRequest.getLeaveDateFrom());
+			} else {
+				days = jatahCutiMax(user) - selisihTanggal(leaveRequest.getLeaveDateTo(), leaveRequest.getLeaveDateFrom());
+			}
+		}
 		
 		return days;
 	}
 	
+	// GET MINIMUM REMAINING DAYS OFF
+	private int minimumRemainingDays(UserLeaveRequest leaveRequest, User user) {
+		int min = 0;
+		List<UserLeaveRequest> list = leaveRequestRepository.findAll();
+		List<Integer> sameIdList = new ArrayList<Integer>();
+		
+		for (UserLeaveRequest u : list) {
+			if (u.getUser().getUserId() == user.getUserId()) {
+				sameIdList.add(u.getRemainingDaysOff());
+			} else {
+				return jatahCutiMax(user);
+			}
+		}	
+		
+		min = Collections.min(sameIdList);
+		
+		return min;
+	}
+	
+	// VALIDATE REMAINING DAYS OFF
+	private boolean validateRemainingDays(UserLeaveRequest leaveRequest, User user) {
+		boolean valid = false;
+		
+		if (remaining(leaveRequest, user) > 0) {
+			valid = true;
+		} else {
+			valid = false;
+		}
+		
+		return valid;
+	}
+	
+	// RETURN REMAINING DAYS OFF
+	private int remainingDays(UserLeaveRequest leaveRequest, User user) {
+		int days = 0;
+		
+		if (validateRemainingDays(leaveRequest, user)) {
+			days = remaining(leaveRequest, user);
+		} else {
+			days = 0;
+		}
+		
+		return days;
+	}
 
 
 }

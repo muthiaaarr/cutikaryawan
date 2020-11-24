@@ -1,6 +1,7 @@
 package com.example.cutikaryawan.repositories;
 
 import java.util.Date;
+import java.util.List;
 
 import org.springframework.data.domain.Page;
 import org.springframework.data.domain.Pageable;
@@ -32,6 +33,14 @@ public interface UserLeaveRequestRepository extends JpaRepository<UserLeaveReque
 			countQuery = "SELECT count(*) FROM user_leave_request",
 			nativeQuery = true)
 	Page<UserLeaveRequest> findAllRequestByIdUser(Pageable pageable, Long id);
+	
+	// GET TOTAL DATA BY ID
+	@Query(value = "SELECT * FROM user_leave_request "
+			+ "WHERE user_leave_request.user_id =?1 "
+			+ "ORDER BY user_leave_request.user_leave_request_id",
+			countQuery = "SELECT count(*) FROM user_leave_request",
+			nativeQuery = true)
+	List<UserLeaveRequest> getAllListRequest(Long id);
 	
 	// GET LIST REQUEST BY ID AND DATE
 	@Query(value = "SELECT * FROM user_leave_request "

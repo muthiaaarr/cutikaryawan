@@ -14,6 +14,7 @@ import org.springframework.web.bind.annotation.RequestBody;
 import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
+import com.example.cutikaryawan.exceptions.IdNotFoundException;
 import com.example.cutikaryawan.models.BucketApproval;
 import com.example.cutikaryawan.models.User;
 import com.example.cutikaryawan.models.UserLeaveRequest;
@@ -44,11 +45,15 @@ public class BucketApprovalController {
 		BucketApproval approval = new BucketApproval();
 		approval = mapper.map(approvalDTO, BucketApproval.class);
 		approvalList.add(approval);
+
+		long idUser = approval.getUser().getUserId();
+		User userBy = userRepository.findById(idUser).orElseThrow(() -> new
+				IdNotFoundException(String.format("User dengan id %s tidak dapat ditemukan", idUser)));
 		
-		User userBy = userRepository.findById(approval.getUser().getUserId()).get();
+		long idRequest = approval.getUserLeaveRequest().getUserLeaveRequestId();
+		UserLeaveRequest request = leaveRequestRepository.findById(idRequest).orElseThrow(() -> new
+						IdNotFoundException(String.format("Pengajuan cuti dengan id %s tidak ditemukan", idRequest)));
 		
-		UserLeaveRequest request = leaveRequestRepository.findById(
-				approval.getUserLeaveRequest().getUserLeaveRequestId()).get();
 		User user = userRepository.findById(request.getUser().getUserId()).get();
 		
 		setAttribute(approval, request, user, userBy);
@@ -58,9 +63,16 @@ public class BucketApprovalController {
 			result.put("Message", "Kesalahan data, tanggal keputusan tidak bisa lebih awal dari pengajuan cuti");
 		} 
 		
+		// TIDAK MEMENUHI APPROVAL REQUIREMENT
+		else if (userApproval(user, userBy) == false) {
+			result.put("Error", String.format("%s tidak dapat approve pengajuan cuti %s", userBy.getPosition().getPositionName(),
+					user.getPosition().getPositionName()));
+		}
+		
 		// APPROVAL SUCCESS
 		else {
 			result.put("Message", String.format("Permohonan dengan ID %s telah berhasil diputuskan", request.getUserLeaveRequestId()));
+			syncRequestAttribute(approval, request);
 			bucketApprovalRepository.save(approval);
 		}
 		
@@ -85,21 +97,9 @@ public class BucketApprovalController {
 		return fixDate;
 	}
 	
-	// SET SUBMISSION STATUS
-	private void setRequestStatus(BucketApproval bucketApproval, UserLeaveRequest leaveRequest) {
-		List<BucketApproval> approvalList = bucketApprovalRepository.findAll();
-		
-		for (BucketApproval b : approvalList) {
-			UserLeaveRequest request = leaveRequestRepository.findById(b.getUserLeaveRequest().getUserLeaveRequestId()).get();
-			leaveRequest.setSubmissionStatus(b.getResolverDecision());
-			leaveRequestRepository.save(request);
-		}
-	}
-	
 	// SET ATTRIBUTE
 	private void setAttribute(BucketApproval approval, UserLeaveRequest request, User user, User userBy) {
 		approval.setSubmissionStatus(approval.getResolverDecision());
-		setRequestStatus(approval, request);
 		approval.setDateOfFiling(request.getDateOfFiling());
 		approval.setApplicantName(user.getUserName());
 		approval.setResolvedBy(userBy.getUserName());
@@ -116,6 +116,45 @@ public class BucketApprovalController {
 		System.out.println("approval\t" + approval.getSubmissionStatus());
 		System.out.println("resolved\t" + approval.getResolvedDate());
 		System.out.println();
+	}
+	
+	// USER APPROVAL REQUIREMENT
+	private boolean userApproval(User user, User userBy) {
+		boolean valid = false;
+		
+		if ((user.getPosition().getPositionName().equalsIgnoreCase("employee") && userBy.getPosition().getPositionName().equalsIgnoreCase("supervisor"))
+				|| (user.getPosition().getPositionName().equalsIgnoreCase("supervisor") && userBy.getPosition().getPositionName().equalsIgnoreCase("supervisor")
+						&& user.getPosition().getPositionId() != userBy.getPosition().getPositionId())
+				|| (user.getPosition().getPositionName().equalsIgnoreCase("staff") && userBy.getPosition().getPositionName().equalsIgnoreCase("staff"))) {
+			valid = true;
+		} else {
+			valid = false;
+		}
+		
+		return valid;
+	}
+	
+	// SELISIH TANGGAL
+	private int selisihTanggal(Date date1, Date date2) {
+		
+		long diff = (date1.getTime() - date2.getTime());
+		long diffDays = diff / (24*60*60*1000);
+		int i = (int)diffDays + 1;
+		
+		return i;
+	}
+	
+	// SET REMAINING DAYS OFF AND SUBMISSION STATUS
+	private void syncRequestAttribute(BucketApproval approval, UserLeaveRequest request) {
+		int selisih = selisihTanggal(request.getLeaveDateTo(), request.getLeaveDateFrom());
+		
+		if (approval.getSubmissionStatus().equalsIgnoreCase("rejected")) {
+			request.setRemainingDaysOff(request.getRemainingDaysOff() + selisih);
+		} else {
+			request.getRemainingDaysOff();
+		}
+		request.setSubmissionStatus(approval.getSubmissionStatus());
+		leaveRequestRepository.save(request);
 	}
 
 	
